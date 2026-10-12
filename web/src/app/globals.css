@@ -772,3 +772,11 @@ button.ghost.tiny {
     grid-template-columns: 1fr;
   }
 }
+
+article.card .head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
