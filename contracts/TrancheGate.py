@@ -105,20 +105,20 @@ INJECTION_MARKERS = (
 def _normalize_id(value: str) -> str:
     gid = str(value).strip()
     if not gid:
-        raise Exception("grant_id is required")
+        raise gl.vm.UserError("grant_id is required")
     if len(gid) > MAX_ID_LEN:
-        raise Exception("grant_id exceeds 64 chars")
+        raise gl.vm.UserError("grant_id exceeds 64 chars")
     for ch in gid:
         ok = ("a" <= ch.lower() <= "z") or ("0" <= ch <= "9") or ch in "-_/."
         if not ok:
-            raise Exception("grant_id: only a-z, 0-9, -, _, /, .")
+            raise gl.vm.UserError("grant_id: only a-z, 0-9, -, _, /, .")
     return gid
 
 
 def _require_address(label: str, value: str) -> str:
     addr = str(value).strip()
     if not ADDR_RE.match(addr):
-        raise Exception(f"{label} must be a 0x address")
+        raise gl.vm.UserError(f"{label} must be a 0x address")
     return addr
 
 
@@ -129,20 +129,20 @@ def _same(a: str, b: str) -> bool:
 def _sanitize_text(label: str, text: str, max_len: int) -> str:
     cleaned = " ".join(str(text).split())
     if not cleaned:
-        raise Exception(f"{label} is required")
+        raise gl.vm.UserError(f"{label} is required")
     if len(cleaned) > max_len:
-        raise Exception(f"{label} exceeds {max_len} chars")
+        raise gl.vm.UserError(f"{label} exceeds {max_len} chars")
     return cleaned
 
 
 def _require_https(url: str) -> str:
     u = str(url).strip()
     if not HTTPS_URL_RE.match(u):
-        raise Exception("progress_url must be https:// with no whitespace")
+        raise gl.vm.UserError("progress_url must be https:// with no whitespace")
     if len(u) > MAX_URL_LEN:
-        raise Exception("progress_url exceeds 2048 chars")
+        raise gl.vm.UserError("progress_url exceeds 2048 chars")
     if ".." in u[len("https://") :].split("/"):
-        raise Exception("progress_url must not contain .. path segments")
+        raise gl.vm.UserError("progress_url must not contain .. path segments")
     return u
 
 
@@ -150,9 +150,9 @@ def parse_seconds(label: str, value, low: int, high: int) -> int:
     try:
         seconds = int(str(value).strip())
     except Exception:
-        raise Exception(f"{label} must be an integer number of seconds")
+        raise gl.vm.UserError(f"{label} must be an integer number of seconds")
     if seconds < low or seconds > high:
-        raise Exception(f"{label} must be between {low} and {high} seconds")
+        raise gl.vm.UserError(f"{label} must be between {low} and {high} seconds")
     return seconds
 
 
@@ -160,9 +160,9 @@ def parse_small_int(label: str, value, low: int, high: int) -> int:
     try:
         number = int(str(value).strip())
     except Exception:
-        raise Exception(f"{label} must be an integer")
+        raise gl.vm.UserError(f"{label} must be an integer")
     if number < low or number > high:
-        raise Exception(f"{label} must be between {low} and {high}")
+        raise gl.vm.UserError(f"{label} must be between {low} and {high}")
     return number
 
 
@@ -446,13 +446,18 @@ def decide_review(
     except Exception:
         verdict = None
     if not isinstance(verdict, dict):
-        raise Exception("validator verdict was not an object")
+        raise gl.vm.UserError("validator verdict was not an object")
     decision = str(verdict.get("verdict", "invalid"))
     if decision == REVIEW_MET:
         return True
     if decision == REVIEW_NOT_MET:
         return False
-    raise Exception("validators did not return met or not_met")
+    raise gl.vm.UserError("validators did not return met or not_met")
+
+
+def remaining_of(grant: dict) -> int:
+    """Wei of this grant still held by the contract."""
+    return int(grant["total"]) - int(grant["paid_out"]) - int(grant["returned"])
 
 
 def _dump(value) -> str:
@@ -499,12 +504,8 @@ class TrancheGate(gl.contract.Contract):
         gid = _normalize_id(grant_id)
         grants = self._load()
         if gid not in grants:
-            raise Exception("unknown grant_id")
+            raise gl.vm.UserError("unknown grant_id")
         return gid, grants
-
-    @staticmethod
-    def _remaining(grant: dict) -> int:
-        return int(grant["total"]) - int(grant["paid_out"]) - int(grant["returned"])
 
     # -- writes ----------------------------------------------------------------
 
@@ -531,7 +532,7 @@ class TrancheGate(gl.contract.Contract):
 
         def refuse(reason: str) -> str:
             if value <= 0:
-                raise Exception(reason)
+                raise gl.vm.UserError(reason)
             self._credit(funder, value)
             return _dump({"opened": False, "credited": str(value), "reason": reason})
 
@@ -556,7 +557,7 @@ class TrancheGate(gl.contract.Contract):
         if len(grants) >= MAX_GRANTS:
             return refuse("grant limit reached")
         if value <= 0:
-            raise Exception("open_grant needs the grant amount as value")
+            raise gl.vm.UserError("open_grant needs the grant amount as value")
         if value > MAX_GRANT_WEI:
             return refuse("grant exceeds the maximum size")
         if value % count != 0:
@@ -618,10 +619,12 @@ class TrancheGate(gl.contract.Contract):
         gid, grants = self._grant_or_raise(grant_id)
         grant = grants[gid]
         if grant["status"] != STATUS_ACTIVE:
-            raise Exception("the grant is not active")
+            raise gl.vm.UserError("the grant is not active")
         now = now_seconds()
         if now < int(grant["next_review_at"]):
-            raise Exception("too early: the next review opens at " + str(grant["next_review_at"]))
+            raise gl.vm.UserError(
+                "too early: the next review opens at " + str(grant["next_review_at"])
+            )
 
         tranche_no = int(grant["tranches_paid"]) + 1
         anchor = grant["title"] + " " + grant["criterion"]
@@ -722,11 +725,11 @@ class TrancheGate(gl.contract.Contract):
         )
 
     def _return_remainder(self, grant: dict, status: str) -> int:
-        amount = self._remaining(grant)
+        amount = remaining_of(grant)
         if amount <= 0:
-            raise Exception("nothing is left in this grant")
+            raise gl.vm.UserError("nothing is left in this grant")
         if int(self.balance) < amount:
-            raise Exception("contract balance is lower than the amount owed")
+            raise gl.vm.UserError("contract balance is lower than the amount owed")
         grant["returned"] = str(int(grant["returned"]) + amount)
         grant["status"] = status
         return amount
@@ -739,9 +742,9 @@ class TrancheGate(gl.contract.Contract):
         grant = grants[gid]
         caller = str(gl.message.sender_address)
         if not _same(caller, grant["funder"]):
-            raise Exception("only the funder may reclaim")
+            raise gl.vm.UserError("only the funder may reclaim")
         if grant["status"] != STATUS_HALTED:
-            raise Exception("only a halted grant can be reclaimed")
+            raise gl.vm.UserError("only a halted grant can be reclaimed")
         amount = self._return_remainder(grant, STATUS_RECLAIMED)
         grants[gid] = grant
         self._save(grants)
@@ -756,9 +759,9 @@ class TrancheGate(gl.contract.Contract):
         grant = grants[gid]
         caller = str(gl.message.sender_address)
         if not _same(caller, grant["grantee"]):
-            raise Exception("only the grantee may renounce")
+            raise gl.vm.UserError("only the grantee may renounce")
         if grant["status"] not in (STATUS_ACTIVE, STATUS_HALTED):
-            raise Exception("the grant is already closed")
+            raise gl.vm.UserError("the grant is already closed")
         amount = self._return_remainder(grant, STATUS_RENOUNCED)
         grants[gid] = grant
         self._save(grants)
@@ -773,9 +776,9 @@ class TrancheGate(gl.contract.Contract):
         credits = json.loads(self.credits_json)
         amount = int(credits.get(caller, "0"))
         if amount <= 0:
-            raise Exception("no credit for this address")
+            raise gl.vm.UserError("no credit for this address")
         if int(self.balance) < amount:
-            raise Exception("contract balance is lower than the amount owed")
+            raise gl.vm.UserError("contract balance is lower than the amount owed")
         del credits[caller]
         self.credits_json = _dump(credits)
         pay_wallet(caller, amount)
@@ -805,7 +808,7 @@ class TrancheGate(gl.contract.Contract):
                 "can_review": active and now >= int(grant["next_review_at"]),
                 "can_reclaim": grant["status"] == STATUS_HALTED,
                 "can_renounce": grant["status"] in (STATUS_ACTIVE, STATUS_HALTED),
-                "remaining": str(self._remaining(grant)),
+                "remaining": str(remaining_of(grant)),
                 "tranches_paid": grant["tranches_paid"],
                 "tranches": grant["tranches"],
                 "misses": grant["misses"],
@@ -825,7 +828,7 @@ class TrancheGate(gl.contract.Contract):
     def get_balance(self) -> str:
         """{balance, escrowed, credits} in wei. balance == escrowed + credits."""
         grants = self._load()
-        escrowed = sum(self._remaining(g) for g in grants.values())
+        escrowed = sum(remaining_of(g) for g in grants.values())
         credits = sum(int(v) for v in json.loads(self.credits_json).values())
         return _dump(
             {"balance": str(int(self.balance)), "escrowed": str(escrowed), "credits": str(credits)}

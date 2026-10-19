@@ -589,3 +589,10 @@ def test_history_records_every_review_with_the_page_hash(env):
     h = grant(c)["history"]
     assert [x["result"] for x in h] == ["met", "unchanged"]
     assert h[0]["content_hash"] == h[1]["content_hash"] and len(h[0]["content_hash"]) == 64
+
+
+def test_errors_are_user_errors_and_every_contract_method_takes_self():
+    body = SOURCE.split("class TrancheGate")[1]
+    assert "raise Exception(" not in SOURCE and "raise gl.vm.UserError(" in SOURCE
+    assert "@staticmethod" not in body and "@classmethod" not in body
+    assert '"Depends": "py-genlayer:5jycge4q8k23462jtb0b9fyey1s9qz928sz2nbrd9mg4sxqg2qng"' in SOURCE

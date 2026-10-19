@@ -81,7 +81,7 @@ run again.
 |---|---|
 | Console | **https://valentinzubok.github.io/TrancheGate/** (reads work with no wallet) |
 | Network | GenLayer Studio Dev / Studio Next — chain `61997` |
-| Contract | [`0x67aede124648dEb4749f0F96173F44df6F6d09D1`](https://explorer-studio-dev.genlayer.com/address/0x67aede124648dEb4749f0F96173F44df6F6d09D1) |
+| Contract | [`0x0B8853256eCD33984f007Dd869afEed1aDeE8e33`](https://explorer-studio-dev.genlayer.com/address/0x0B8853256eCD33984f007Dd869afEed1aDeE8e33) |
 | Contract-only repo | [TrancheGateCore](https://github.com/valentinzubok/TrancheGateCore) |
 | Deploy record | [`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md) — every transaction of the demo, including the refused ones |
 
@@ -102,6 +102,13 @@ was changed by public commits, the way a real grantee updates a report:
 The deploy record shows what the validators made of each, and what happened when the page was
 left unchanged.
 
+## Lint
+
+`sh scripts/lint_current_sdk.sh` runs the official GenVM linter (`genvm-lint lint`, `check` and
+`typecheck`) and CI runs it on every push. Refusals raise `gl.vm.UserError`; every method of the
+contract class takes `self`. Why the full SDK check runs on a header-swapped copy is explained in
+[`STUDIO_DEV_DEPLOY.md`](STUDIO_DEV_DEPLOY.md#lint).
+
 ## The console
 
 [`web/`](web/) — Next.js 16 + `genlayer-js` 2.0.0-rc.1 + MetaMask, exported statically to Pages.
@@ -121,7 +128,7 @@ npm run dev      # http://localhost:3018
 
 ```bash
 pip install -r requirements-dev.txt
-python3 -m pytest -q      # 72 tests
+python3 -m pytest -q      # 73 tests
 ```
 
 [`tests/test_tranchegate.py`](tests/test_tranchegate.py), by what it proves:

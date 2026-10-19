@@ -9,7 +9,7 @@ import sys
 import urllib.request
 
 RPC = "https://studio-dev.genlayer.com/api"
-ADDRESS = "0x67aede124648dEb4749f0F96173F44df6F6d09D1"
+ADDRESS = "0x0B8853256eCD33984f007Dd869afEed1aDeE8e33"
 SOURCE = pathlib.Path(__file__).resolve().parents[1] / "contracts" / "TrancheGate.py"
 
 

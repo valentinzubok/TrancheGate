@@ -1,6 +1,6 @@
 /** Live TrancheGate deploy on GenLayer Studio Dev (chain 61997). Override via env. */
 export const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_TRANCHEGATE_ADDRESS ||
-  "0x67aede124648dEb4749f0F96173F44df6F6d09D1") as `0x${string}`;
+  "0x0B8853256eCD33984f007Dd869afEed1aDeE8e33") as `0x${string}`;
 
 /** Studio Dev / Studio Next — chain ID 61997. */
 export const CHAIN_ID = 61997;
